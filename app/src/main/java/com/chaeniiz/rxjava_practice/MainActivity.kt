@@ -3,108 +3,78 @@ package com.chaeniiz.rxjava_practice
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
+import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
+
+    private val URL = "http://api.openweathermap.org/data/2.5/weather?q=London&APPID=e4df7c76d3271f1aa12284310650eb86"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val observable = Observable.create<Int> { subscriber ->
-            for (i in arrayOf(1, 2, 3, 4, 5)) {
-                Log.e("observable 1 #", Thread.currentThread().name + " : onNext " + i)
-                subscriber.onNext(i)
-            }
-        }
+        run()
 
-        observable.subscribe { e -> Log.e("observable 1 #", Thread.currentThread().name + " : onErrorHandler") }
+    }
 
-        val observable2 = Observable.create<Int> { subscriber ->
-            for (i in arrayOf(1, 2, 3, 4, 5)) {
-                Log.e("observable 2 #", Thread.currentThread().name + " : onNext " + i)
-                subscriber.onNext(i)
-            }
-        }
-
-        observable2.subscribeOn(Schedulers.computation())
-                .subscribe { e -> Log.e("observable 2 #", Thread.currentThread().name + " : onErrorHandler") }
-
-        val observable3 = Observable.create<Int> { subscriber ->
-            for (i in arrayOf(1, 2, 3, 4, 5)) {
-                Log.e("observable 3 #", Thread.currentThread().name + " : onNext " + i)
-                subscriber.onNext(i)
-            }
-        }
-
-        observable3
-                .subscribeOn(Schedulers.computation())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { e -> Log.e("observable 3 #", Thread.currentThread().name + " : onErrorHandler") }
-
-        val observable4 = Observable.create<Int> { subscriber ->
-            for (i in arrayOf(1, 2, 3, 4, 5)) {
-                Log.e("observable 4 #", Thread.currentThread().name + " : onNext " + i)
-                subscriber.onNext(i)
-            }
-        }
-
-        observable4
-                .subscribeOn(Schedulers.computation())
-                .observeOn(Schedulers.newThread())
-                .concatMap<Any> { integer ->
-                    val newinteger = integer * 10
-                    Log.e("observable 4 #", Thread.currentThread().name + " : concatMap value :" + newinteger)
-                    Observable.just(newinteger)
-                }
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { e -> Log.e("observable 4 #", Thread.currentThread().name + " : onErrorHandler") }
+    fun run() {
+        CommonUtils().exampleStart()
 
         /*
-        1. 스케줄러는 RxJava 코드를 어느 스레드에서 실행할지 지정할 수 있다.
-        2. subscribeOn() 함수와 observeOn() 함수를 모두 지정하면
-            Observable에서 데이터 흐름이 발생하는 스레드와 처리된 결과를 구독자에게 발행하는
-            스레드를 분리할 수 있다.
-        3. subscribeOn() 함수만 호출하면 Observable의 모든 흐름이 동일한 스레드에서 실행된다.
-        4. 스케줄러를 별도로 지정하지 않으면 현재(main) 스레드에서 동작을 실행한다.
-        */
+    Observable<String> source = Observable.just(URL)
+            .map(OkHttpHelper::getWithLog)
+            .subscribeOn(Schedulers.io())
+            .share()
+            .observeOn(Schedulers.io());
+    */
 
-        val args = arrayOf("1", "3", "5")
+        /*
+    Maybe<String> source = Maybe.just(URL)
+            .map(OkHttpHelper::getWithLog)
+            .subscribeOn(Schedulers.io())
+            .observeOn(Schedulers.io());
 
-        Observable.fromArray(*args)
-                .doOnNext { data -> Log.v("#", "original data : $data") }
-                .map { data -> "<<$data>>" }
-                .subscribeOn(Schedulers.newThread())
-                .subscribe { Log.i("current scheduler : ", Thread.currentThread().toString()) }
+            0개 또는 1개를 발행하는 것이라서 Maybe도 잘 동작한다.
+            근데 그럼 모든 Single은 전부 Maybe로 작성해도 되는 걸까..?!?!?!?!
+    */
 
-        Thread.sleep(500)
-
-        Observable.fromArray(*args)
-                .doOnNext { data -> Log.v("#", "original data : $data") }
-                .map { data -> "**$data**" }
+        val source = Single.just(URL)
+                .map(OkHttpHelper()::getWithLog)
                 .subscribeOn(Schedulers.io())
-                .subscribe { Log.i("current scheduler : ", Thread.currentThread().toString()) }
+                .observeOn(Schedulers.io())
 
-        val singleSource: Single<String> = Single.just("Hello Single")
-        singleSource.subscribe {
-            e -> Log.e("# Single #", singleSource.toString())
-        }
+        val changedSource = Completable.fromSingle<String>(source)
 
-        val maybeSource: Maybe<ArrayList<String>> = Maybe.just(arrayListOf("Hello Single"))
-        maybeSource.subscribe {
-            e -> Log.e("# Maybe #", maybeSource.toString())
-        }
+        source.map(this::parseTemperature).subscribe()
+        source.map(this::parseCityName).subscribe()
+        source.map(this::parseCountry).subscribe()
 
-        /*
-        val completableSource: Completable = Completable.just(arrayListOf("Hello Single"))
-        completableSource.subscribe {
-            e -> Log.e("# Maybe #", maybeSource.toString())
-        }*/
+        CommonUtils().sleep(1000)
+    }
 
-        // completable은 발행하는 것이 없기 때문에 argument도 없고, just로 발행할 수 있는 함수도 없음
+    fun parseTemperature(json: String): String {
+        return parseApi(json, "\"temp\":[0-9]*.[0-9]*")
+    }
+
+    fun parseCityName(json: String): String {
+        return parseApi(json, "\"name\":\"[a-zA-Z]*\"")
+    }
+
+    fun parseCountry(json: String): String {
+        return parseApi(json, "\"country\":\"[a-zA-Z]*\"")
+    }
+
+    fun parseApi(json: String, regex: String): String {
+        val pattern = Pattern.compile(regex)
+        val match = pattern.matcher(json)
+        return if (match.find()) {
+            match.group()
+        } else "N/A"
     }
 }
