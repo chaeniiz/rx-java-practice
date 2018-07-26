@@ -15,6 +15,10 @@ class ObserveOnSubscribeOn : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_observe_on_subscribe_on)
 
+        observeOnSubscribeOn()
+    }
+
+    fun observeOnSubscribeOn() {
         val observable = Observable.create<Int> { subscriber ->
             for (i in arrayOf(1, 2, 3, 4, 5)) {
                 Log.e("observable 1 #", Thread.currentThread().name + " : onNext " + i)

@@ -20,7 +20,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         run()
-
     }
 
     fun run() {
@@ -77,4 +76,7 @@ class MainActivity : AppCompatActivity() {
             match.group()
         } else "N/A"
     }
+
+
+
 }
